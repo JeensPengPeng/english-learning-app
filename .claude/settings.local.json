@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:developer.volcengine.com)",
+      "WebFetch(domain:cloud.tencent.com)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(openspec *)",
+      "Bash(npx skills *)",
+      "Bash(setx JAVA_HOME *)",
+      "Bash(setx MAVEN_HOME *)",
+      "Bash(setx PATH *)",
+      "Bash(export JAVA_HOME=\"C:\\\\SoftWare\\\\zulu8.50.0.21-ca-jdk8.0.272-win_x64\")",
+      "Bash(export MAVEN_HOME=\"C:\\\\SoftWare\\\\apache-maven-3.6.1\")",
+      "Bash(export PATH=\"$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin\")",
+      "Bash(java -version)",
+      "Bash(mvn -version)",
+      "WebFetch(domain:skills.sh)",
+      "Read(//c/workspace/**)",
+      "Bash(npx create-next-app@latest dark-dashboard --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npx next *)",
+      "Bash(node -e \"const pkg = require\\('@phosphor-icons/react'\\); const names = Object.keys\\(pkg\\).filter\\(k => /activity|trending|chart|settings|users|shopping|credit|bell|search|arrow/i.test\\(k\\)\\); console.log\\(names.join\\('\\\\n'\\)\\);\")",
+      "Bash(curl -s http://localhost:3456/)",
+      "Bash(start *)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill *)",
+      "Bash(npm list *)",
+      "Bash(npx create-next-app@latest english-learning-app --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)"
+    ]
+  }
+}
