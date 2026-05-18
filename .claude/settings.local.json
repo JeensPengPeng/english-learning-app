@@ -26,7 +26,9 @@
       "Bash(netstat -ano)",
       "Bash(taskkill *)",
       "Bash(npm list *)",
-      "Bash(npx create-next-app@latest english-learning-app --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)"
+      "Bash(npx create-next-app@latest english-learning-app --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npm test *)",
+      "Bash(git add *)"
     ]
   }
 }

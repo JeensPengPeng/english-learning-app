@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import SWRegistration from "@/components/SWRegistration";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="英语复习" />
       </head>
       <body className="min-h-screen flex flex-col bg-emerald-50 text-gray-900 antialiased select-none">
+        <SWRegistration />
         {children}
       </body>
     </html>

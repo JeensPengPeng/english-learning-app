@@ -16,6 +16,7 @@ export default function NewLessonPage() {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [step, setStep] = useState<'capture' | 'review'>('capture');
+  const [inputMode, setInputMode] = useState<'photo' | 'manual'>('photo');
 
   const handleImageCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -36,6 +37,7 @@ export default function NewLessonPage() {
       const lines = await recognizeLines(file, (p) => setProgress(p));
       const texts = lines.map(l => l.text);
       setRecognizedLines(texts);
+      setInputMode('photo');
       setStep('review');
     } catch (err) {
       console.error('OCR failed:', err);
@@ -118,14 +120,23 @@ export default function NewLessonPage() {
               />
             </div>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing}
-              className="w-full bg-emerald-500 text-white rounded-2xl p-6 text-center shadow-md active:bg-emerald-600 disabled:opacity-50"
-            >
-              <span className="text-4xl">📷</span>
-              <p className="text-xl font-semibold mt-2">拍照 / 选择图片</p>
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessing}
+                className="flex-1 bg-emerald-500 text-white rounded-2xl p-6 text-center shadow-md active:bg-emerald-600 disabled:opacity-50"
+              >
+                <span className="text-4xl">📷</span>
+                <p className="text-lg font-semibold mt-2">拍照录入</p>
+              </button>
+              <button
+                onClick={() => { setRecognizedLines(['']); setInputMode('manual'); setStep('review'); }}
+                className="flex-1 bg-sky-500 text-white rounded-2xl p-6 text-center shadow-md active:bg-sky-600"
+              >
+                <span className="text-4xl">✏️</span>
+                <p className="text-lg font-semibold mt-2">手动输入</p>
+              </button>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -159,7 +170,10 @@ export default function NewLessonPage() {
         {step === 'review' && (
           <div className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-              <p className="text-amber-800">请检查识别结果，删除错误内容，修正拼写</p>
+              {inputMode === 'photo'
+                ? <p className="text-amber-800">请检查识别结果，删除错误内容，修正拼写</p>
+                : <p className="text-amber-800">请输入单词或句子，每行一条</p>
+              }
             </div>
 
             {recognizedLines.map((line, i) => (
@@ -182,20 +196,36 @@ export default function NewLessonPage() {
               </div>
             ))}
 
-            <button
-              onClick={() => setRecognizedLines(prev => [...prev, ''])}
-              className="w-full border-2 border-dashed border-emerald-300 rounded-2xl p-3 text-emerald-500 active:bg-emerald-50"
-            >
-              + 手动添加单词
-            </button>
+              {inputMode === 'photo'
+                ? <button
+                    onClick={() => setRecognizedLines(prev => [...prev, ''])}
+                    className="w-full border-2 border-dashed border-emerald-300 rounded-2xl p-3 text-emerald-500 active:bg-emerald-50"
+                  >
+                    + 手动添加单词
+                  </button>
+                : <button
+                    onClick={() => setRecognizedLines(prev => [...prev, ''])}
+                    className="w-full border-2 border-dashed border-sky-300 rounded-2xl p-3 text-sky-500 active:bg-sky-50"
+                  >
+                    + 添加一行
+                  </button>
+              }
 
             <div className="flex gap-3">
-              <button
-                onClick={() => setStep('capture')}
-                className="flex-1 bg-gray-200 text-gray-700 rounded-2xl p-4 text-lg font-semibold"
-              >
-                重新拍照
-              </button>
+              {inputMode === 'photo'
+                ? <button
+                    onClick={() => setStep('capture')}
+                    className="flex-1 bg-gray-200 text-gray-700 rounded-2xl p-4 text-lg font-semibold"
+                  >
+                    重新拍照
+                  </button>
+                : <button
+                    onClick={() => setStep('capture')}
+                    className="flex-1 bg-gray-200 text-gray-700 rounded-2xl p-4 text-lg font-semibold"
+                  >
+                    ← 返回
+                  </button>
+              }
               <button
                 onClick={handleConfirm}
                 className="flex-1 bg-emerald-500 text-white rounded-2xl p-4 text-lg font-semibold active:bg-emerald-600"
