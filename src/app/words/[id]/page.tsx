@@ -8,7 +8,6 @@ import { RecordingManager } from '@/lib/recording';
 import { speak, stopSpeaking } from '@/lib/tts';
 import { getWord, updateWord, addRecording, getRecordingsByWord, MAX_RECORDINGS_PER_WORD, deleteRecording, getDB } from '@/lib/db';
 import type { Word, Recording } from '@/lib/db';
-import { useAppStore } from '@/store/appStore';
 
 export default function WordDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,12 +15,11 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
   const [word, setWord] = useState<Word | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [waveform, setWaveform] = useState<Uint8Array | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const setAppWaveform = useAppStore(s => s.setWaveform);
-  const setIsRecordingStore = useAppStore(s => s.setIsRecording);
+  const [recorder, setRecorder] = useState<RecordingManager | null>(null);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -35,49 +33,57 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   async function handleRecording() {
-    if (isRecording) {
+    if (isRecording && recorder) {
       // Stop recording
-      setIsRecording(false);
-      setIsRecordingStore(false);
-      const mgr = (window as any).__recordingMgr as RecordingManager;
-      if (!mgr) return;
-      const blob = await mgr.stop();
+      try {
+        setIsRecording(false);
+        const blob = await recorder.stop();
+        if (blob.size === 0) return;
 
-      // Save recording
-      const rec: Recording = {
-        id: crypto.randomUUID(),
-        wordId: id,
-        type: 'practice',
-        audioData: blob,
-        createdAt: Date.now(),
-      };
-      await addRecording(rec);
+        // Save recording
+        const rec: Recording = {
+          id: crypto.randomUUID(),
+          wordId: id,
+          type: 'practice',
+          audioData: blob,
+          createdAt: Date.now(),
+        };
+        await addRecording(rec);
 
-      // Extract waveform for display
-      rec.waveformData = await RecordingManager.extractWaveformData(blob);
-
-      // Enforce max recordings
-      const allRecs = await getRecordingsByWord(id);
-      if (allRecs.length > MAX_RECORDINGS_PER_WORD) {
-        allRecs.sort((a, b) => a.createdAt - b.createdAt);
-        const excess = allRecs.length - MAX_RECORDINGS_PER_WORD;
-        const db = await getDB();
-        for (let i = 0; i < excess; i++) {
-          await db.delete('recordings', allRecs[i].id);
+        // Enforce max recordings
+        const allRecs = await getRecordingsByWord(id);
+        if (allRecs.length > MAX_RECORDINGS_PER_WORD) {
+          allRecs.sort((a, b) => a.createdAt - b.createdAt);
+          const excess = allRecs.length - MAX_RECORDINGS_PER_WORD;
+          const db = await getDB();
+          for (let i = 0; i < excess; i++) {
+            await db.delete('recordings', allRecs[i].id);
+          }
         }
-      }
 
-      await loadData();
-    } else {
+        await loadData();
+      } catch (err) {
+        console.error('Failed to stop recording:', err);
+        setIsRecording(false);
+        setIsInitializing(false);
+      }
+      setRecorder(null);
+    } else if (!isRecording && !isInitializing) {
       // Start recording
-      const mgr = new RecordingManager();
-      (window as any).__recordingMgr = mgr;
-      setIsRecording(true);
-      setIsRecordingStore(true);
-      await mgr.start((data) => {
-        setWaveform(new Uint8Array(data));
-        setAppWaveform(new Uint8Array(data));
-      });
+      setIsInitializing(true);
+      try {
+        const mgr = new RecordingManager();
+        await mgr.start((data) => {
+          setWaveform(new Uint8Array(data));
+        });
+        setRecorder(mgr);
+        setIsInitializing(false);
+        setIsRecording(true);
+      } catch (err) {
+        console.error('Failed to start recording:', err);
+        setIsInitializing(false);
+        alert('无法访问麦克风，请确保已授予录音权限。\n\n注意：手机需要使用 HTTPS 连接。');
+      }
     }
   }
 
@@ -130,13 +136,16 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
           <WaveformCanvas data={isRecording ? waveform : null} color={isRecording ? '#ef4444' : '#10b981'} height={60} />
           <button
             onClick={handleRecording}
+            disabled={isInitializing}
             className={`w-full mt-4 rounded-2xl p-4 text-xl font-semibold shadow-md transition-colors ${
-              isRecording
-                ? 'bg-red-500 text-white active:bg-red-600'
-                : 'bg-sky-500 text-white active:bg-sky-600'
+              isInitializing
+                ? 'bg-gray-400 text-white cursor-not-allowed'
+                : isRecording
+                  ? 'bg-red-500 text-white active:bg-red-600'
+                  : 'bg-sky-500 text-white active:bg-sky-600'
             }`}
           >
-            {isRecording ? '⏹️ 停止录音' : '🎤 按住录音'}
+            {isInitializing ? '🎤 正在启动...' : isRecording ? '⏹️ 停止录音' : '🎤 开始录音'}
           </button>
         </div>
 
