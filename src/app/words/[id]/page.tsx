@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import WaveformCanvas from '@/components/WaveformCanvas';
@@ -19,9 +19,26 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
   const [isPlaying, setIsPlaying] = useState(false);
   const [waveform, setWaveform] = useState<Uint8Array | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [recorder, setRecorder] = useState<RecordingManager | null>(null);
+
+  // Use refs for reliable access in async handlers
+  const isRecordingRef = useRef(false);
+  const recorderRef = useRef<RecordingManager | null>(null);
+  const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { loadData(); }, [id]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recorderRef.current) {
+        recorderRef.current.stop().catch(() => {});
+        isRecordingRef.current = false;
+      }
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+      }
+    };
+  }, []);
 
   async function loadData() {
     const w = await getWord(id);
@@ -33,42 +50,61 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   async function handleRecording() {
-    if (isRecording && recorder) {
+    if (isRecordingRef.current && recorderRef.current) {
       // Stop recording
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      const mgr = recorderRef.current;
+      recorderRef.current = null;
+
       try {
-        setIsRecording(false);
-        const blob = await recorder.stop();
-        if (blob.size === 0) return;
-
-        // Save recording
-        const rec: Recording = {
-          id: crypto.randomUUID(),
-          wordId: id,
-          type: 'practice',
-          audioData: blob,
-          createdAt: Date.now(),
-        };
-        await addRecording(rec);
-
-        // Enforce max recordings
-        const allRecs = await getRecordingsByWord(id);
-        if (allRecs.length > MAX_RECORDINGS_PER_WORD) {
-          allRecs.sort((a, b) => a.createdAt - b.createdAt);
-          const excess = allRecs.length - MAX_RECORDINGS_PER_WORD;
-          const db = await getDB();
-          for (let i = 0; i < excess; i++) {
-            await db.delete('recordings', allRecs[i].id);
+        // Safety timeout: if onstop doesn't fire within 3s, force cleanup
+        let resolved = false;
+        stopTimeoutRef.current = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            setIsInitializing(false);
+            console.warn('Recording stop timed out');
           }
-        }
+        }, 3000);
 
-        await loadData();
+        const blob = await mgr.stop();
+        resolved = true;
+        if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
+
+        if (blob.size > 0) {
+          // Save recording
+          const rec: Recording = {
+            id: crypto.randomUUID(),
+            wordId: id,
+            type: 'practice',
+            audioData: blob,
+            createdAt: Date.now(),
+          };
+          await addRecording(rec);
+
+          // Enforce max recordings
+          const allRecs = await getRecordingsByWord(id);
+          if (allRecs.length > MAX_RECORDINGS_PER_WORD) {
+            allRecs.sort((a, b) => a.createdAt - b.createdAt);
+            const excess = allRecs.length - MAX_RECORDINGS_PER_WORD;
+            const db = await getDB();
+            for (let i = 0; i < excess; i++) {
+              await db.delete('recordings', allRecs[i].id);
+            }
+          }
+
+          await loadData();
+        }
+        setIsInitializing(false);
       } catch (err) {
         console.error('Failed to stop recording:', err);
+        isRecordingRef.current = false;
         setIsRecording(false);
         setIsInitializing(false);
+        recorderRef.current = null;
       }
-      setRecorder(null);
-    } else if (!isRecording && !isInitializing) {
+    } else if (!isRecordingRef.current && !isInitializing) {
       // Start recording
       setIsInitializing(true);
       try {
@@ -76,7 +112,8 @@ export default function WordDetailPage({ params }: { params: Promise<{ id: strin
         await mgr.start((data) => {
           setWaveform(new Uint8Array(data));
         });
-        setRecorder(mgr);
+        recorderRef.current = mgr;
+        isRecordingRef.current = true;
         setIsInitializing(false);
         setIsRecording(true);
       } catch (err) {
